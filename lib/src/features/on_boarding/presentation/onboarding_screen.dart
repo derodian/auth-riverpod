@@ -1,4 +1,4 @@
-import 'package:auth_riverpod/src/on_boarding/presentation/onboarding_controller.dart';
+import 'package:auth_riverpod/src/features/on_boarding/presentation/onboarding_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 

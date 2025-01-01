@@ -1,8 +1,8 @@
-import 'package:auth_riverpod/splash/presentation/splash_screen.dart';
-import 'package:auth_riverpod/src/home/presentation/home_screen.dart';
-import 'package:auth_riverpod/src/on_boarding/data/onboarding_repository.dart';
-import 'package:auth_riverpod/src/on_boarding/presentation/onboarding_controller.dart';
-import 'package:auth_riverpod/src/on_boarding/presentation/onboarding_screen.dart';
+import 'package:auth_riverpod/src/features/splash/presentation/splash_screen.dart';
+import 'package:auth_riverpod/src/features/home/presentation/home_screen.dart';
+import 'package:auth_riverpod/src/features/on_boarding/data/onboarding_repository.dart';
+import 'package:auth_riverpod/src/features/on_boarding/presentation/onboarding_controller.dart';
+import 'package:auth_riverpod/src/features/on_boarding/presentation/onboarding_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';

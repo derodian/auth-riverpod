@@ -6,11 +6,11 @@ part of 'app_router.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$goRouterHash() => r'9224b01f03d8f0af72287437c6a3da26f2548b57';
+String _$goRouterHash() => r'2cbc6c98165a6e29448841627b819de61fa50fdd';
 
 /// See also [goRouter].
 @ProviderFor(goRouter)
-final goRouterProvider = Provider<Raw<GoRouter>>.internal(
+final goRouterProvider = Provider<GoRouter>.internal(
   goRouter,
   name: r'goRouterProvider',
   debugGetCreateSourceHash:
@@ -21,6 +21,22 @@ final goRouterProvider = Provider<Raw<GoRouter>>.internal(
 
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
-typedef GoRouterRef = ProviderRef<Raw<GoRouter>>;
+typedef GoRouterRef = ProviderRef<GoRouter>;
+String _$routerControllerHash() => r'5d8e7f4d77f803246947bb7f3e1bc369c1b89fec';
+
+/// See also [RouterController].
+@ProviderFor(RouterController)
+final routerControllerProvider =
+    AutoDisposeNotifierProvider<RouterController, void>.internal(
+  RouterController.new,
+  name: r'routerControllerProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$routerControllerHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$RouterController = AutoDisposeNotifier<void>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

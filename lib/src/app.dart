@@ -1,3 +1,4 @@
+import 'package:auth_riverpod/src/constants/keys.dart';
 import 'package:auth_riverpod/src/routing/app_router.dart';
 import 'package:auth_riverpod/src/theme/app_theme_data.dart';
 import 'package:auth_riverpod/src/theme/app_theme_mode.dart';
@@ -13,6 +14,7 @@ class MyApp extends ConsumerWidget {
     final themeMode = ref.watch(appThemeModeNotifierProvider);
     print('=== Building MyApp ===');
     return MaterialApp.router(
+      scaffoldMessengerKey: scaffoldMessengerKey,
       debugShowCheckedModeBanner: false,
       theme: AppThemeData.light(),
       darkTheme: AppThemeData.dark(),

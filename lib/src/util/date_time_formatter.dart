@@ -1,3 +1,4 @@
+import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:intl/intl.dart';
 
 class DateTimeFormatter {
@@ -118,4 +119,14 @@ class DateTimeFormatter {
   static bool _isThisYear(DateTime date) {
     return date.year == DateTime.now().year;
   }
+}
+
+class DateTimeConverter implements JsonConverter<DateTime, String> {
+  const DateTimeConverter();
+
+  @override
+  DateTime fromJson(String json) => DateTime.parse(json);
+
+  @override
+  String toJson(DateTime object) => object.toIso8601String();
 }

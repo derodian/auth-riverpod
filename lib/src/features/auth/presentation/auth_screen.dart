@@ -1,11 +1,13 @@
-// lib/features/auth/screens/auth_screen.dart
+import 'dart:io' show Platform;
+import 'package:auth_riverpod/src/features/auth/widgets/social_auth_button.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:auth_riverpod/src/features/auth/domain/app_user.dart';
 import 'package:auth_riverpod/src/features/auth/enum/auth_form_type.dart';
 import 'package:auth_riverpod/src/features/auth/presentation/auth_controller.dart';
 import 'package:auth_riverpod/src/features/auth/presentation/email_password_form.dart';
 import 'package:auth_riverpod/src/widgets/async_value_listner.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
@@ -33,6 +35,56 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     });
   }
 
+  // Helper method to determine if we should show Apple Sign In
+  bool get _showAppleSignIn {
+    if (kIsWeb) return true; // Show on web
+    if (Platform.isIOS || Platform.isMacOS)
+      return true; // Show on Apple platforms
+    return false; // Don't show on other platforms
+  }
+
+  // Helper method to get available social providers
+  List<AppAuthProvider> get _socialProviders {
+    final providers = <AppAuthProvider>[AppAuthProvider.google];
+
+    if (_showAppleSignIn) {
+      providers.add(AppAuthProvider.apple);
+    }
+
+    providers.addAll([
+      AppAuthProvider.facebook,
+      AppAuthProvider.github,
+    ]);
+
+    return providers;
+  }
+
+  Future<void> _handleSocialSignIn(AppAuthProvider provider) async {
+    try {
+      switch (provider) {
+        case AppAuthProvider.google:
+          await ref.read(authControllerProvider.notifier).signInWithGoogle();
+          break;
+        // case AppAuthProvider.apple:
+        //   await ref.read(authControllerProvider.notifier).signInWithApple();
+        //   break;
+        // case AppAuthProvider.facebook:
+        //   await ref.read(authControllerProvider.notifier).signInWithFacebook();
+        //   break;
+        // case AppAuthProvider.github:
+        //   await ref.read(authControllerProvider.notifier).signInWithGithub();
+        //   break;
+        default:
+          break;
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
+  }
+
   Future<void> _onSubmit(
     String email,
     String password, [
@@ -41,7 +93,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   ]) async {
     try {
       if (_formType.isSignIn) {
-        await ref.read(authControllerProvider.notifier).signIn(
+        await ref.read(authControllerProvider.notifier).signInEmail(
               email,
               password,
             );
@@ -84,6 +136,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final size = MediaQuery.of(context).size;
+    final isSmallScreen = size.width < 600; // Adjust breakpoint as needed
+
     final authState = ref.watch(authControllerProvider);
 
     return AsyncValueListener<AppUser?>(
@@ -98,54 +154,220 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         body: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const FlutterLogo(size: 100),
-                  const SizedBox(height: 32),
-                  Text(
-                    _formType.isSignIn
-                        ? 'Welcome Back!'
-                        : _formType.isSignUp
-                            ? 'Create Account'
-                            : 'Reset Password',
-                    style: Theme.of(context).textTheme.headlineMedium,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 32),
-                  EmailPasswordForm(
-                    formType: _formType,
-                    onSubmit: _onSubmit,
-                    enabled: !authState.isLoading,
-                  ),
-                  const SizedBox(height: 16),
-                  if (!_formType.isForgotPassword)
-                    TextButton(
-                      onPressed: authState.isLoading ? null : _toggleFormType,
-                      child: Text(
-                        _formType.isSignIn
-                            ? 'Need an account? Sign up'
-                            : 'Have an account? Sign in',
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                constraints: const BoxConstraints(maxWidth: 500),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Logo section
+                    _buildLogoSection(theme),
+
+                    // Title section
+                    _buildTitleSection(theme),
+
+                    // Social auth section
+                    if (!_formType.isForgotPassword) ...[
+                      _buildSocialAuthSection(
+                        isSmallScreen: isSmallScreen,
+                        isLoading: authState.isLoading,
                       ),
+                      const _OrDivider(),
+                    ],
+
+                    // Email form section
+                    _buildEmailFormSection(authState.isLoading),
+
+                    // Action buttons section
+                    _buildActionButtons(
+                      theme: theme,
+                      isLoading: authState.isLoading,
                     ),
-                  if (_formType.isSignIn)
-                    TextButton(
-                      onPressed:
-                          authState.isLoading ? null : _showForgotPassword,
-                      child: const Text('Forgot password?'),
-                    ),
-                  if (_formType.isForgotPassword)
-                    TextButton(
-                      onPressed: authState.isLoading ? null : _toggleFormType,
-                      child: const Text('Have an account? Sign in'),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildLogoSection(ThemeData theme) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: theme.colorScheme.primaryContainer,
+          ),
+          child: Icon(
+            Icons.lock_outline,
+            size: 48,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 32),
+      ],
+    );
+  }
+
+  Widget _buildTitleSection(ThemeData theme) {
+    return Column(
+      children: [
+        Text(
+          _formType.isSignIn
+              ? 'Welcome Back!'
+              : _formType.isSignUp
+                  ? 'Create Account'
+                  : 'Reset Password',
+          style: theme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          _getSubtitle(),
+          style: theme.textTheme.bodyLarge?.copyWith(
+            color: theme.textTheme.bodyMedium?.color,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 32),
+      ],
+    );
+  }
+
+  String _getSubtitle() {
+    if (_formType.isSignIn) {
+      return 'Sign in to continue to your account';
+    } else if (_formType.isSignUp) {
+      return 'Create an account to get started';
+    } else {
+      return 'Enter your email to reset your password';
+    }
+  }
+
+  Widget _buildSocialAuthSection({
+    required bool isSmallScreen,
+    required bool isLoading,
+  }) {
+    return Column(
+      children: [
+        if (isSmallScreen)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: _socialProviders.map((provider) {
+              return SocialAuthButton(
+                provider: provider,
+                onPressed:
+                    isLoading ? null : () => _handleSocialSignIn(provider),
+                size: SocialButtonSize.small,
+              );
+            }).toList(),
+          )
+        else
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: _socialProviders.map((provider) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: SocialAuthButton(
+                  provider: provider,
+                  onPressed:
+                      isLoading ? null : () => _handleSocialSignIn(provider),
+                  outlined: true,
+                  size: SocialButtonSize.large,
+                ),
+              );
+            }).toList(),
+          ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  Widget _buildEmailFormSection(bool isLoading) {
+    return Column(
+      children: [
+        EmailPasswordForm(
+          formType: _formType,
+          onSubmit: _onSubmit,
+          enabled: !isLoading,
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildActionButtons({
+    required ThemeData theme,
+    required bool isLoading,
+  }) {
+    return Column(
+      children: [
+        if (!_formType.isForgotPassword)
+          TextButton(
+            onPressed: isLoading ? null : _toggleFormType,
+            child: Text(
+              _formType.isSignIn
+                  ? 'Need an account? Sign up'
+                  : 'Have an account? Sign in',
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ),
+        if (_formType.isSignIn)
+          TextButton(
+            onPressed: isLoading ? null : _showForgotPassword,
+            child: Text(
+              'Forgot password?',
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ),
+        if (_formType.isForgotPassword)
+          TextButton(
+            onPressed: isLoading ? null : _toggleFormType,
+            child: Text(
+              'Back to Sign In',
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _OrDivider extends StatelessWidget {
+  const _OrDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      child: Row(
+        children: [
+          Expanded(child: Divider(color: Colors.grey[300])),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              'or continue with email',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Expanded(child: Divider(color: Colors.grey[300])),
+        ],
       ),
     );
   }

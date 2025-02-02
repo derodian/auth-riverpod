@@ -18,6 +18,14 @@ _$AppUserImpl _$$AppUserImplFromJson(Map<String, dynamic> json) =>
       isEmailVerified: json['isEmailVerified'] as bool? ?? false,
       isAdminApproved: json['isAdminApproved'] as bool? ?? false,
       isAdmin: json['isAdmin'] as bool? ?? false,
+      provider:
+          $enumDecodeNullable(_$AppAuthProviderEnumMap, json['provider']) ??
+              AppAuthProvider.email,
+      linkedProviders: (json['linkedProviders'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const [],
+      providerData: json['providerData'] as Map<String, dynamic>?,
       createdAt:
           const DateTimeConverter().fromJson(json['createdAt'] as String),
       lastLoginAt:
@@ -38,7 +46,18 @@ Map<String, dynamic> _$$AppUserImplToJson(_$AppUserImpl instance) =>
       'isEmailVerified': instance.isEmailVerified,
       'isAdminApproved': instance.isAdminApproved,
       'isAdmin': instance.isAdmin,
+      'provider': _$AppAuthProviderEnumMap[instance.provider]!,
+      'linkedProviders': instance.linkedProviders,
+      'providerData': instance.providerData,
       'createdAt': const DateTimeConverter().toJson(instance.createdAt),
       'lastLoginAt': const DateTimeConverter().toJson(instance.lastLoginAt),
       'lastUpdatedAt': const DateTimeConverter().toJson(instance.lastUpdatedAt),
     };
+
+const _$AppAuthProviderEnumMap = {
+  AppAuthProvider.email: 'email',
+  AppAuthProvider.google: 'google',
+  AppAuthProvider.apple: 'apple',
+  AppAuthProvider.facebook: 'facebook',
+  AppAuthProvider.github: 'github',
+};

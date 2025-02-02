@@ -1,4 +1,5 @@
 import 'package:auth_riverpod/src/features/auth/domain/app_user.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 abstract class AppAuth {
   // Current user getters
@@ -41,10 +42,29 @@ abstract class AppAuth {
     String? photoURL,
   });
 
+  // Social authentication
+  Future<AppUser> signInWithGoogle();
+  // Future<AppUser> signInWithApple();
+  // Future<AppUser> signInWithFacebook();
+  // Future<AppUser> signInWithGithub();
+
   // Delete account
   Future<void> deleteAccount();
+
+  // Reauthentication methods
   Future<void> reauthenticateWithPassword({
     required String email,
     required String password,
   });
+
+  Future<void> reauthenticateWithGoogle();
+  // Future<void> reauthenticateWithApple();
+  // Future<void> reauthenticateWithFacebook();
+
+  // Generic credential reauthentication
+  Future<void> reauthenticateWithCredential(AuthCredential credential);
+
+  // Provider linking methods
+  Future<AppUser> linkProvider(AppAuthProvider provider);
+  Future<AppUser> unlinkProvider(AppAuthProvider provider);
 }

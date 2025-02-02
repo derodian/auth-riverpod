@@ -45,6 +45,16 @@
 		<true/>
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true/>
+		<key>CFBundleURLTypes</key>
+		<array>
+			<dict>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<!-- Add your REVERSED_CLIENT_ID here -->
+					<string>com.googleusercontent.apps.771379252028-lo6079tjs6cacc4nkb9tf9kus8rhkmtv</string>
+				</array>
+			</dict>
+		</array>
 		<key>LSApplicationQueriesSchemes</key>
 		<array>
 			<string>tel</string>

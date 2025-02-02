@@ -1,4 +1,5 @@
-// lib/core/services/auth/firebase_auth_service.dart
+import 'package:auth_riverpod/src/features/auth/data/google_auth_service.dart';
+import 'package:auth_riverpod/src/features/auth/data/reauthentication_required_exception.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -13,6 +14,11 @@ class FirebaseAuthService implements AppAuth {
 
   final FirebaseAuth _auth;
   final AppUserStorageService _userStorage;
+
+  // Add social auth service fields
+  final GoogleAuthService _googleAuth = GoogleAuthService();
+  // final AppleAuthService _appleAuth = AppleAuthService();
+  // final FacebookAuthService _facebookAuth = FacebookAuthService();
 
   @override
   Future<AppUser?> getCurrentUser() async {
@@ -125,7 +131,12 @@ class FirebaseAuthService implements AppAuth {
 
   @override
   Future<void> signOut() async {
-    await _auth.signOut();
+    await Future.wait([
+      _auth.signOut(),
+      _googleAuth.signOut(),
+      // _facebookAuth.signOut(),
+      // Apple doesn't need sign out
+    ]);
   }
 
   @override
@@ -133,6 +144,148 @@ class FirebaseAuthService implements AppAuth {
     final user = _auth.currentUser;
     if (user == null) throw Exception('No user found');
     await user.sendEmailVerification();
+  }
+
+  // Add social sign-in methods
+  @override
+  Future<AppUser> signInWithGoogle() async {
+    try {
+      final credential = await _googleAuth.getGoogleCredential();
+      final userCredential = await _auth.signInWithCredential(credential);
+
+      if (userCredential.user == null) {
+        throw Exception('No user found after Google sign in');
+      }
+
+      return await _handleSocialSignIn(
+        userCredential: userCredential,
+        provider: AppAuthProvider.google,
+      );
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
+    } catch (e) {
+      throw Exception('Failed to sign in with Google: ${e.toString()}');
+    }
+  }
+
+  // Helper method to handle social sign-in
+  Future<AppUser> _handleSocialSignIn({
+    required UserCredential userCredential,
+    required AppAuthProvider provider,
+  }) async {
+    final firebaseUser = userCredential.user!;
+    final userData = userCredential.additionalUserInfo?.profile;
+
+    // Check if user exists
+    final existingUser = await _userStorage.getUser(firebaseUser.uid);
+
+    if (existingUser != null) {
+      // Update last login and return existing user
+      await _userStorage.updateLastLogin(existingUser.id);
+      return existingUser;
+    }
+
+    // Create new user
+    final newUser = AppUser.fromSocialAuth(
+      id: firebaseUser.uid,
+      email: firebaseUser.email!,
+      name: firebaseUser.displayName ?? firebaseUser.email!.split('@')[0],
+      provider: provider,
+      phoneNumber: firebaseUser.phoneNumber,
+      profileImageUrl: firebaseUser.photoURL,
+      providerData: userData,
+    );
+
+    // Save to storage
+    await _userStorage.createUser(newUser);
+    return newUser;
+  }
+
+  @override
+  Future<AppUser> linkProvider(AppAuthProvider provider) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('No user found');
+
+      AuthCredential? credential;
+      switch (provider) {
+        case AppAuthProvider.google:
+          credential = await _googleAuth.getGoogleCredential();
+          break;
+        // case AppAuthProvider.apple:
+        //   credential = await _appleAuth.getAppleCredential();
+        //   break;
+        // case AppAuthProvider.facebook:
+        //   credential = await _facebookAuth.getFacebookCredential();
+        //   break;
+        // case AppAuthProvider.github:
+        //   credential = await _githubAuth.getGithubCredential();
+        // break;
+        default:
+          throw Exception('Unsupported provider for linking');
+      }
+
+      final result = await user.linkWithCredential(credential);
+      if (result.user == null) throw Exception('Failed to link provider');
+
+      // Get provider data from the result
+      final providerData = result.additionalUserInfo?.profile;
+
+      // Update user in Firestore
+      // First update the provider data if available
+      AppUser updatedUser;
+      if (providerData != null) {
+        updatedUser = await _userStorage.updateUserProviderData(
+          result.user!.uid,
+          providerData,
+        );
+      }
+
+      // Then link the provider
+      updatedUser = await _userStorage.linkProvider(
+        result.user!.uid,
+        provider,
+      );
+
+      return updatedUser;
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
+    }
+  }
+
+  @override
+  Future<AppUser> unlinkProvider(AppAuthProvider provider) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('No user found');
+
+      await user.unlink(provider.providerId);
+
+      // Update user in Firestore
+      final updatedUser = await _userStorage.unlinkProvider(
+        user.uid,
+        provider,
+      );
+
+      return updatedUser;
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
+    }
+  }
+
+  AppAuthProvider _getProviderFromCredential(AuthCredential credential) {
+    switch (credential.providerId) {
+      case 'google.com':
+        return AppAuthProvider.google;
+      case 'apple.com':
+        return AppAuthProvider.apple;
+      case 'facebook.com':
+        return AppAuthProvider.facebook;
+      case 'github.com':
+        return AppAuthProvider.github;
+      default:
+        return AppAuthProvider.email;
+    }
   }
 
   @override
@@ -247,6 +400,20 @@ class FirebaseAuthService implements AppAuth {
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
     } catch (e) {
+      throw Exception('Failed to delete account: $e');
+    }
+  }
+
+  // Add to existing reauthenticate method
+  @override
+  Future<void> reauthenticateWithCredential(AuthCredential credential) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('No user found');
+      await user.reauthenticateWithCredential(credential);
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
+    } catch (e) {
       throw Exception(e.toString());
     }
   }
@@ -268,8 +435,21 @@ class FirebaseAuthService implements AppAuth {
       await user.reauthenticateWithCredential(credential);
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
+    }
+  }
+
+  @override
+  Future<void> reauthenticateWithGoogle() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('No user found');
+
+      final credential = await _googleAuth.getGoogleCredential();
+      await user.reauthenticateWithCredential(credential);
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
     } catch (e) {
-      throw Exception(e.toString());
+      throw Exception('Failed to reauthenticate with Google: $e');
     }
   }
 
@@ -285,8 +465,6 @@ class FirebaseAuthService implements AppAuth {
         return Exception('This account has been disabled');
       case 'too-many-requests':
         return Exception('Too many attempts. Please try again later');
-      case 'operation-not-allowed':
-        return Exception('Email/password sign in is not enabled');
       case 'email-already-in-use':
         return Exception('An account already exists with this email');
       case 'weak-password':
@@ -301,8 +479,42 @@ class FirebaseAuthService implements AppAuth {
         return Exception('Invalid verification ID');
       case 'requires-recent-login':
         return Exception('Please sign in again to complete this action');
+      case 'account-exists-with-different-credential':
+        return Exception(
+            'An account already exists with the same email address but different sign-in credentials');
+      case 'operation-not-allowed':
+        return Exception('This sign-in provider is not enabled');
+      case 'popup-blocked':
+        return Exception('The popup was blocked by the browser');
+      case 'popup-closed-by-user':
+        return Exception(
+            'The popup was closed by the user before finalizing the sign-in');
+      case 'provider-already-linked':
+        return Exception('This provider is already linked to your account');
+      case 'no-such-provider':
+        return Exception('This provider is not linked to your account');
+      case 'credential-already-in-use':
+        return Exception('This account is already linked to another user');
       default:
         return Exception(e.message ?? 'An unknown error occurred');
+    }
+  }
+}
+
+// Add provider ID extension
+extension AppAuthProviderX on AppAuthProvider {
+  String get providerId {
+    switch (this) {
+      case AppAuthProvider.google:
+        return 'google.com';
+      case AppAuthProvider.apple:
+        return 'apple.com';
+      case AppAuthProvider.facebook:
+        return 'facebook.com';
+      case AppAuthProvider.github:
+        return 'github.com';
+      case AppAuthProvider.email:
+        return 'password';
     }
   }
 }

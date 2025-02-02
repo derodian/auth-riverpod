@@ -30,6 +30,9 @@ mixin _$AppUser {
   bool get isEmailVerified => throw _privateConstructorUsedError;
   bool get isAdminApproved => throw _privateConstructorUsedError;
   bool get isAdmin => throw _privateConstructorUsedError;
+  AppAuthProvider get provider => throw _privateConstructorUsedError;
+  List<String> get linkedProviders => throw _privateConstructorUsedError;
+  Map<String, dynamic>? get providerData => throw _privateConstructorUsedError;
   @DateTimeConverter()
   DateTime get createdAt => throw _privateConstructorUsedError;
   @DateTimeConverter()
@@ -62,6 +65,9 @@ abstract class $AppUserCopyWith<$Res> {
       bool isEmailVerified,
       bool isAdminApproved,
       bool isAdmin,
+      AppAuthProvider provider,
+      List<String> linkedProviders,
+      Map<String, dynamic>? providerData,
       @DateTimeConverter() DateTime createdAt,
       @DateTimeConverter() DateTime lastLoginAt,
       @DateTimeConverter() DateTime lastUpdatedAt});
@@ -92,6 +98,9 @@ class _$AppUserCopyWithImpl<$Res, $Val extends AppUser>
     Object? isEmailVerified = null,
     Object? isAdminApproved = null,
     Object? isAdmin = null,
+    Object? provider = null,
+    Object? linkedProviders = null,
+    Object? providerData = freezed,
     Object? createdAt = null,
     Object? lastLoginAt = null,
     Object? lastUpdatedAt = null,
@@ -137,6 +146,18 @@ class _$AppUserCopyWithImpl<$Res, $Val extends AppUser>
           ? _value.isAdmin
           : isAdmin // ignore: cast_nullable_to_non_nullable
               as bool,
+      provider: null == provider
+          ? _value.provider
+          : provider // ignore: cast_nullable_to_non_nullable
+              as AppAuthProvider,
+      linkedProviders: null == linkedProviders
+          ? _value.linkedProviders
+          : linkedProviders // ignore: cast_nullable_to_non_nullable
+              as List<String>,
+      providerData: freezed == providerData
+          ? _value.providerData
+          : providerData // ignore: cast_nullable_to_non_nullable
+              as Map<String, dynamic>?,
       createdAt: null == createdAt
           ? _value.createdAt
           : createdAt // ignore: cast_nullable_to_non_nullable
@@ -171,6 +192,9 @@ abstract class _$$AppUserImplCopyWith<$Res> implements $AppUserCopyWith<$Res> {
       bool isEmailVerified,
       bool isAdminApproved,
       bool isAdmin,
+      AppAuthProvider provider,
+      List<String> linkedProviders,
+      Map<String, dynamic>? providerData,
       @DateTimeConverter() DateTime createdAt,
       @DateTimeConverter() DateTime lastLoginAt,
       @DateTimeConverter() DateTime lastUpdatedAt});
@@ -199,6 +223,9 @@ class __$$AppUserImplCopyWithImpl<$Res>
     Object? isEmailVerified = null,
     Object? isAdminApproved = null,
     Object? isAdmin = null,
+    Object? provider = null,
+    Object? linkedProviders = null,
+    Object? providerData = freezed,
     Object? createdAt = null,
     Object? lastLoginAt = null,
     Object? lastUpdatedAt = null,
@@ -244,6 +271,18 @@ class __$$AppUserImplCopyWithImpl<$Res>
           ? _value.isAdmin
           : isAdmin // ignore: cast_nullable_to_non_nullable
               as bool,
+      provider: null == provider
+          ? _value.provider
+          : provider // ignore: cast_nullable_to_non_nullable
+              as AppAuthProvider,
+      linkedProviders: null == linkedProviders
+          ? _value._linkedProviders
+          : linkedProviders // ignore: cast_nullable_to_non_nullable
+              as List<String>,
+      providerData: freezed == providerData
+          ? _value._providerData
+          : providerData // ignore: cast_nullable_to_non_nullable
+              as Map<String, dynamic>?,
       createdAt: null == createdAt
           ? _value.createdAt
           : createdAt // ignore: cast_nullable_to_non_nullable
@@ -274,10 +313,15 @@ class _$AppUserImpl extends _AppUser {
       this.isEmailVerified = false,
       this.isAdminApproved = false,
       this.isAdmin = false,
+      this.provider = AppAuthProvider.email,
+      final List<String> linkedProviders = const [],
+      final Map<String, dynamic>? providerData,
       @DateTimeConverter() required this.createdAt,
       @DateTimeConverter() required this.lastLoginAt,
       @DateTimeConverter() required this.lastUpdatedAt})
-      : super._();
+      : _linkedProviders = linkedProviders,
+        _providerData = providerData,
+        super._();
 
   factory _$AppUserImpl.fromJson(Map<String, dynamic> json) =>
       _$$AppUserImplFromJson(json);
@@ -306,6 +350,28 @@ class _$AppUserImpl extends _AppUser {
   @JsonKey()
   final bool isAdmin;
   @override
+  @JsonKey()
+  final AppAuthProvider provider;
+  final List<String> _linkedProviders;
+  @override
+  @JsonKey()
+  List<String> get linkedProviders {
+    if (_linkedProviders is EqualUnmodifiableListView) return _linkedProviders;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_linkedProviders);
+  }
+
+  final Map<String, dynamic>? _providerData;
+  @override
+  Map<String, dynamic>? get providerData {
+    final value = _providerData;
+    if (value == null) return null;
+    if (_providerData is EqualUnmodifiableMapView) return _providerData;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(value);
+  }
+
+  @override
   @DateTimeConverter()
   final DateTime createdAt;
   @override
@@ -317,7 +383,7 @@ class _$AppUserImpl extends _AppUser {
 
   @override
   String toString() {
-    return 'AppUser(id: $id, email: $email, name: $name, phoneNumber: $phoneNumber, profileImageUrl: $profileImageUrl, profileBackgroundUrl: $profileBackgroundUrl, address: $address, isEmailVerified: $isEmailVerified, isAdminApproved: $isAdminApproved, isAdmin: $isAdmin, createdAt: $createdAt, lastLoginAt: $lastLoginAt, lastUpdatedAt: $lastUpdatedAt)';
+    return 'AppUser(id: $id, email: $email, name: $name, phoneNumber: $phoneNumber, profileImageUrl: $profileImageUrl, profileBackgroundUrl: $profileBackgroundUrl, address: $address, isEmailVerified: $isEmailVerified, isAdminApproved: $isAdminApproved, isAdmin: $isAdmin, provider: $provider, linkedProviders: $linkedProviders, providerData: $providerData, createdAt: $createdAt, lastLoginAt: $lastLoginAt, lastUpdatedAt: $lastUpdatedAt)';
   }
 
   @override
@@ -340,6 +406,12 @@ class _$AppUserImpl extends _AppUser {
             (identical(other.isAdminApproved, isAdminApproved) ||
                 other.isAdminApproved == isAdminApproved) &&
             (identical(other.isAdmin, isAdmin) || other.isAdmin == isAdmin) &&
+            (identical(other.provider, provider) ||
+                other.provider == provider) &&
+            const DeepCollectionEquality()
+                .equals(other._linkedProviders, _linkedProviders) &&
+            const DeepCollectionEquality()
+                .equals(other._providerData, _providerData) &&
             (identical(other.createdAt, createdAt) ||
                 other.createdAt == createdAt) &&
             (identical(other.lastLoginAt, lastLoginAt) ||
@@ -362,6 +434,9 @@ class _$AppUserImpl extends _AppUser {
       isEmailVerified,
       isAdminApproved,
       isAdmin,
+      provider,
+      const DeepCollectionEquality().hash(_linkedProviders),
+      const DeepCollectionEquality().hash(_providerData),
       createdAt,
       lastLoginAt,
       lastUpdatedAt);
@@ -394,6 +469,9 @@ abstract class _AppUser extends AppUser {
           final bool isEmailVerified,
           final bool isAdminApproved,
           final bool isAdmin,
+          final AppAuthProvider provider,
+          final List<String> linkedProviders,
+          final Map<String, dynamic>? providerData,
           @DateTimeConverter() required final DateTime createdAt,
           @DateTimeConverter() required final DateTime lastLoginAt,
           @DateTimeConverter() required final DateTime lastUpdatedAt}) =
@@ -422,6 +500,12 @@ abstract class _AppUser extends AppUser {
   bool get isAdminApproved;
   @override
   bool get isAdmin;
+  @override
+  AppAuthProvider get provider;
+  @override
+  List<String> get linkedProviders;
+  @override
+  Map<String, dynamic>? get providerData;
   @override
   @DateTimeConverter()
   DateTime get createdAt;

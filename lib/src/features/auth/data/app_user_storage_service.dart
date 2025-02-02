@@ -37,6 +37,208 @@ class AppUserStorageService extends _$AppUserStorageService {
     });
   }
 
+  // Method to handle user creation or update from social auth
+  Future<AppUser> createOrUpdateSocialUser(AppUser user) async {
+    return _runTransactionSafely((transaction) async {
+      final userDoc = _usersCollection.doc(user.id);
+      final snapshot = await transaction.get(userDoc);
+
+      if (snapshot.exists) {
+        // User exists, update last login and merge any new data
+        final existingUser = snapshot.toAppUser();
+        if (existingUser == null) throw Exception('Invalid user data');
+
+        final updatedUser = existingUser.copyWith(
+          lastLoginAt: DateTime.now(),
+          lastUpdatedAt: DateTime.now(),
+          // Update these fields only if they're empty in existing user
+          name: existingUser.name.isEmpty ? user.name : existingUser.name,
+          profileImageUrl: existingUser.profileImageUrl ?? user.profileImageUrl,
+          phoneNumber: existingUser.phoneNumber ?? user.phoneNumber,
+          // Always update these fields
+          isEmailVerified: true, // Social auth emails are typically verified
+          providerData: user.providerData,
+        );
+
+        transaction.update(userDoc, updatedUser.toFirestore());
+        return updatedUser;
+      } else {
+        // New user, create with social auth data
+        transaction.set(userDoc, user.toFirestore());
+        return user;
+      }
+    });
+  }
+
+  // Method to link additional providers to existing user
+  Future<AppUser> linkProvider(String userId, AppAuthProvider provider) async {
+    return _runTransactionSafely((transaction) async {
+      final userDoc = _usersCollection.doc(userId);
+      final snapshot = await transaction.get(userDoc);
+
+      if (!snapshot.exists) {
+        throw Exception('User does not exist');
+      }
+
+      final existingUser = snapshot.toAppUser();
+      if (existingUser == null) throw Exception('Invalid user data');
+
+      // Update the user's linked providers
+      final updatedProviders = [
+        ...existingUser.linkedProviders
+      ]; // Since it has default empty list
+      if (!updatedProviders.contains(provider.name)) {
+        updatedProviders.add(provider.name);
+      }
+
+      // Create updated user
+      final updatedUser = existingUser.copyWith(
+        linkedProviders: updatedProviders,
+        lastUpdatedAt: DateTime.now(),
+      );
+
+      // Update in Firestore
+      transaction.update(userDoc, updatedUser.toFirestore());
+
+      return updatedUser;
+    });
+  }
+
+  // Method to unlink provider
+  Future<AppUser> unlinkProvider(
+      String userId, AppAuthProvider provider) async {
+    return _runTransactionSafely((transaction) async {
+      final userDoc = _usersCollection.doc(userId);
+      final snapshot = await transaction.get(userDoc);
+
+      if (!snapshot.exists) {
+        throw Exception('User does not exist');
+      }
+
+      final existingUser = snapshot.toAppUser();
+      if (existingUser == null) throw Exception('Invalid user data');
+
+      // Remove the provider from linked providers
+      final updatedProviders = List<String>.from(existingUser.linkedProviders)
+        ..remove(provider.name);
+
+      // Prevent unlinking if it's the only provider
+      if (updatedProviders.isEmpty) {
+        throw Exception('Cannot unlink the only authentication method');
+      }
+
+      // Create updated user
+      final updatedUser = existingUser.copyWith(
+        linkedProviders: updatedProviders,
+        lastUpdatedAt: DateTime.now(),
+      );
+
+      // Update in Firestore
+      transaction.update(userDoc, updatedUser.toFirestore());
+
+      return updatedUser;
+    });
+  }
+
+  // Helper method to get user with updated provider data
+  Future<AppUser> updateUserProviderData(
+    String userId,
+    Map<String, dynamic> providerData,
+  ) async {
+    return _runTransactionSafely((transaction) async {
+      final userDoc = _usersCollection.doc(userId);
+      final snapshot = await transaction.get(userDoc);
+
+      if (!snapshot.exists) {
+        throw Exception('User does not exist');
+      }
+
+      final existingUser = snapshot.toAppUser();
+      if (existingUser == null) throw Exception('Invalid user data');
+
+      // Create updated user
+      final updatedUser = existingUser.copyWith(
+        providerData: providerData,
+        lastUpdatedAt: DateTime.now(),
+      );
+
+      // Update in Firestore
+      transaction.update(userDoc, updatedUser.toFirestore());
+
+      return updatedUser;
+    });
+  }
+
+  // Optional: Helper method to get user's linked providers
+  Future<List<String>> getLinkedProviders(String userId) async {
+    return _runTransactionSafely((transaction) async {
+      final userDoc = _usersCollection.doc(userId);
+      final snapshot = await transaction.get(userDoc);
+
+      if (!snapshot.exists) {
+        throw Exception('User does not exist');
+      }
+
+      final existingUser = snapshot.toAppUser();
+      if (existingUser == null) throw Exception('Invalid user data');
+
+      return existingUser.linkedProviders;
+    });
+  }
+
+  // Method to check if email exists (for preventing duplicate accounts)
+  Future<bool> checkEmailExists(String email) async {
+    try {
+      final querySnapshot = await _usersCollection
+          .where('email', isEqualTo: email)
+          .limit(1)
+          .get();
+      return querySnapshot.docs.isNotEmpty;
+    } on FirebaseException catch (e) {
+      throw _handleFirestoreException(e);
+    }
+  }
+
+  // Method to merge accounts if needed
+  Future<void> mergeAccounts(
+      String primaryUserId, String secondaryUserId) async {
+    return _runTransactionSafely((transaction) async {
+      final primaryDoc = _usersCollection.doc(primaryUserId);
+      final secondaryDoc = _usersCollection.doc(secondaryUserId);
+
+      final primarySnapshot = await transaction.get(primaryDoc);
+      final secondarySnapshot = await transaction.get(secondaryDoc);
+
+      if (!primarySnapshot.exists || !secondarySnapshot.exists) {
+        throw Exception('One or both users do not exist');
+      }
+
+      final primaryUser = primarySnapshot.toAppUser();
+      final secondaryUser = secondarySnapshot.toAppUser();
+
+      if (primaryUser == null || secondaryUser == null) {
+        throw Exception('Invalid user data');
+      }
+
+      // Merge user data
+      final mergedProviders = <String>{
+        ...List<String>.from(primaryUser.linkedProviders ?? []),
+        ...List<String>.from(secondaryUser.linkedProviders ?? []),
+      }.toList(); // Convert to Set and back to List to remove duplicates
+
+      final mergedUser = primaryUser.copyWith(
+        linkedProviders: mergedProviders,
+        lastUpdatedAt: DateTime.now(),
+      );
+
+      // Update primary user with merged data
+      transaction.update(primaryDoc, mergedUser.toFirestore());
+
+      // Delete secondary user
+      transaction.delete(secondaryDoc);
+    });
+  }
+
   Future<void> updateUser(AppUser user) async {
     return _runTransactionSafely((transaction) async {
       final userDoc = _usersCollection.doc(user.id);
@@ -69,19 +271,6 @@ class AppUserStorageService extends _$AppUserStorageService {
       transaction.delete(userDoc);
     });
   }
-
-  // Future<void> createUser(AppUser user) async {
-  //   await _usersCollection.doc(user.id).set(user.toFirestore());
-  // }
-
-  // Future<void> updateUser(AppUser user) async {
-  //   await _usersCollection.doc(user.id).update(user.toFirestore());
-  // }
-
-  // Future<AppUser?> getUser(String userId) async {
-  //   final doc = await _usersCollection.doc(userId).get();
-  //   return doc.toAppUser();
-  // }
 
   Stream<AppUser?> watchUser(String userId) {
     return _usersCollection.doc(userId).snapshots().map((doc) {

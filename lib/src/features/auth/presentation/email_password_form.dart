@@ -33,8 +33,6 @@ class _EmailPasswordFormState extends ConsumerState<EmailPasswordForm> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
 
-  bool _obscurePassword = true;
-  bool _obscureConfirmPassword = true;
   double _passwordStrength = 0.0;
 
   bool get _isSignUp => widget.formType.isSignUp;
@@ -49,19 +47,6 @@ class _EmailPasswordFormState extends ConsumerState<EmailPasswordForm> {
     _nameController.dispose();
     _phoneController.dispose();
     super.dispose();
-  }
-
-  void _updatePasswordStrength(String password) {
-    if (!_isSignUp) return;
-
-    double strength = 0;
-    if (password.length >= 8) strength += 0.3;
-    if (password.contains(RegExp(r'[A-Z]'))) strength += 0.2;
-    if (password.contains(RegExp(r'[a-z]'))) strength += 0.2;
-    if (password.contains(RegExp(r'[0-9]'))) strength += 0.2;
-    if (password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'))) strength += 0.1;
-
-    setState(() => _passwordStrength = strength);
   }
 
   void _submit() {

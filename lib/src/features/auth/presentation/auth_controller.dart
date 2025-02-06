@@ -20,12 +20,6 @@ class AuthController extends _$AuthController {
   // Add this getter for the router
   bool get isReauthenticating => _isReauthenticating;
 
-  // void clearLoadingState() {
-  //   if (!_disposed) {
-  //     state = AsyncData(state.valueOrNull);
-  //   }
-  // }
-
   @override
   FutureOr<AppUser?> build() async {
     _setupUserListener();

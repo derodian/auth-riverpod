@@ -1,13 +1,11 @@
 import 'package:auth_riverpod/src/features/auth/data/apple_auth_service.dart';
 import 'package:auth_riverpod/src/features/auth/data/google_auth_service.dart';
-import 'package:auth_riverpod/src/features/auth/data/reauthentication_required_exception.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:auth_riverpod/src/features/auth/data/app_auth.dart';
 import 'package:auth_riverpod/src/features/auth/data/app_user_storage_service.dart';
 import 'package:auth_riverpod/src/features/auth/domain/app_user.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 part 'firebase_auth_service.g.dart';
 

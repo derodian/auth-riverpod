@@ -27,7 +27,6 @@ abstract class AppAuth {
   Future<void> reload();
 
   // Password reset
-  // Future<void> resetPassword(String email);
   Future<void> sendPasswordResetEmail(String email);
   Future<void> confirmPasswordReset({
     required String code,

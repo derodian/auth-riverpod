@@ -44,7 +44,7 @@ abstract class AppAuth {
 
   // Social authentication
   Future<AppUser> signInWithGoogle();
-  // Future<AppUser> signInWithApple();
+  Future<AppUser> signInWithApple();
   // Future<AppUser> signInWithFacebook();
   // Future<AppUser> signInWithGithub();
 
@@ -58,7 +58,7 @@ abstract class AppAuth {
   });
 
   Future<void> reauthenticateWithGoogle();
-  // Future<void> reauthenticateWithApple();
+  Future<void> reauthenticateWithApple();
   // Future<void> reauthenticateWithFacebook();
 
   // Generic credential reauthentication

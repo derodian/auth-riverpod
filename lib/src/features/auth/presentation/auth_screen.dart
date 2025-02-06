@@ -65,9 +65,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         case AppAuthProvider.google:
           await ref.read(authControllerProvider.notifier).signInWithGoogle();
           break;
-        // case AppAuthProvider.apple:
-        //   await ref.read(authControllerProvider.notifier).signInWithApple();
-        //   break;
+        case AppAuthProvider.apple:
+          await ref.read(authControllerProvider.notifier).signInWithApple();
+          break;
         // case AppAuthProvider.facebook:
         //   await ref.read(authControllerProvider.notifier).signInWithFacebook();
         //   break;

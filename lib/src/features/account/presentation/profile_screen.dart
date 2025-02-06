@@ -1,16 +1,14 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:auth_riverpod/src/features/account/presentation/email_reauthentication_dialog.dart';
 import 'package:auth_riverpod/src/features/account/presentation/profile_controller.dart';
 import 'package:auth_riverpod/src/features/account/presentation/profile_settings_button.dart';
-import 'package:auth_riverpod/src/features/auth/data/reauthentication_required_exception.dart';
 import 'package:auth_riverpod/src/features/auth/domain/app_user.dart';
 import 'package:auth_riverpod/src/features/auth/presentation/auth_controller.dart';
-import 'package:auth_riverpod/src/features/auth/widgets/reauthenticationdialog.dart';
 import 'package:auth_riverpod/src/features/widgets/info_row_widget.dart';
 import 'package:auth_riverpod/src/services/snackbar_service.dart';
 import 'package:auth_riverpod/src/util/url_launcher_utils.dart';
-import 'package:auth_riverpod/src/widgets/async_value_listner.dart';
 import 'package:auth_riverpod/src/widgets/async_value_mixin.dart';
 import 'package:auth_riverpod/src/widgets/async_value_widget.dart';
 import 'package:auth_riverpod/src/widgets/combined_async_value_widget.dart';
@@ -34,34 +32,80 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen>
     with AsyncValueMixin<ProfileScreen> {
   Future<void> _handleDeleteAccount() async {
-    // First confirmation
-    final confirmed = await _showDeleteConfirmationDialog();
-    if (confirmed != true || !mounted) return;
-
-    // Get current user and their auth provider
-    final user = ref.read(authControllerProvider).value;
-    if (user == null) return;
-
     try {
-      // Show reauthentication dialog based on provider
-      final bool reauthed;
-      if (user.provider == AppAuthProvider.email) {
-        reauthed = await EmailReauthenticationDialog.show(
-          context,
-          email: user.email,
-          onSubmit: (password) => _handlePasswordSubmission(password),
-        );
-      } else {
-        reauthed = await _showProviderReauthenticationDialog(user.provider);
-      }
+      // First confirmation
+      final confirmed = await _showDeleteConfirmationDialog();
+      if (!mounted || !confirmed) return;
 
-      if (!reauthed || !mounted) return;
+      // Get current user and their auth provider
+      final user = ref.read(authControllerProvider).value;
+      if (user == null) return;
 
-      // If reauthentication successful, proceed with deletion
-      await ref.read(authControllerProvider.notifier).deleteAccount();
-    } on FirebaseAuthException catch (e) {
+      // Set deletion state to true
+      ref.read(deletionStateProvider.notifier).setDeleting(true);
+
       if (!mounted) return;
-      SnackBarService.showError(_getErrorMessage(e));
+
+      // Show loading dialog
+      BuildContext? loadingDialogContext;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          loadingDialogContext = dialogContext;
+          return const AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(width: 16),
+                Text('Deleting account...'),
+              ],
+            ),
+          );
+        },
+      );
+
+      try {
+        // Handle reauthentication based on provider
+        bool reauthed = false;
+        if (user.provider == AppAuthProvider.email) {
+          reauthed = await EmailReauthenticationDialog.show(
+            context,
+            email: user.email,
+            onSubmit: (password) => _handlePasswordSubmission(password),
+          );
+        } else {
+          reauthed = await _showProviderReauthenticationDialog(user.provider);
+        }
+
+        // Check mounted state and reauthentication result
+        if (!mounted || !reauthed) {
+          // Clean up if needed
+          if (loadingDialogContext?.mounted ?? false) {
+            Navigator.of(loadingDialogContext!).pop();
+          }
+          ref.read(deletionStateProvider.notifier).setDeleting(false);
+          return;
+        }
+
+        // Proceed with deletion
+        await ref.read(authControllerProvider.notifier).deleteAccount();
+
+        // Handle successful deletion
+        if (mounted) {
+          if (loadingDialogContext?.mounted ?? false) {
+            Navigator.of(loadingDialogContext!).pop();
+          }
+          Navigator.of(context).pop(); // Return to previous screen
+        }
+      } finally {
+        // Always reset deletion state
+        ref.read(deletionStateProvider.notifier).setDeleting(false);
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        SnackBarService.showError(_getErrorMessage(e));
+      }
     } catch (e) {
       if (!mounted) return;
       SnackBarService.showError('Failed to delete account: $e');
@@ -179,59 +223,100 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
   Future<bool> _showProviderReauthenticationDialog(
       AppAuthProvider provider) async {
-    final confirmed = await showDialog<bool>(
+    debugPrint('Starting reauthentication dialog');
+    bool isAuthenticated = false;
+    final completer = Completer<bool>();
+
+    // Prevent router from redirecting during reauthentication
+    ref.read(authControllerProvider.notifier).clearError();
+
+    debugPrint('About to show dialog');
+    showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirm Your Identity'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Please confirm your identity using ${_getProviderName(provider)} to delete your account.',
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () async {
-                try {
-                  await runAsync(
-                    () => ref
-                        .read(authControllerProvider.notifier)
-                        .reauthenticateWithProvider(provider),
-                    loadingMessage: 'Authenticating...',
-                  );
-                  if (!mounted) return;
-                  Navigator.pop(context, true);
-                } catch (e) {
-                  if (!mounted) return;
-                  Navigator.pop(context, false);
-                  SnackBarService.showError('Authentication failed: $e');
-                }
-              },
-              icon: FaIcon(_getProviderIcon(provider)),
-              label: Text('Continue with ${_getProviderName(provider)}'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _getProviderColor(provider),
-                foregroundColor: Colors.white,
+      builder: (dialogContext) {
+        debugPrint('Building dialog');
+        return AlertDialog(
+          title: const Text('Confirm Your Identity'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Please confirm your identity using ${_getProviderName(provider)} to delete your account.',
               ),
+              const SizedBox(height: 16),
+              StatefulBuilder(builder: (context, setState) {
+                return ElevatedButton.icon(
+                  onPressed: () async {
+                    debugPrint('Authentication button pressed');
+
+                    try {
+                      debugPrint('Starting reauthentication');
+                      // Show loading in button
+                      setState(() {});
+
+                      await ref
+                          .read(authControllerProvider.notifier)
+                          .reauthenticateWithProvider(provider);
+
+                      debugPrint('Reauthentication successful');
+                      isAuthenticated = true;
+
+                      debugPrint(
+                          'Checking dialog context mounted: ${dialogContext.mounted}');
+                      // if (dialogContext.mounted) {
+                      //   debugPrint('Closing dialog with success');
+                      //   Navigator.of(dialogContext).pop();
+                      // }
+
+                      if (!dialogContext.mounted) {
+                        completer.complete(true);
+                        return;
+                      }
+
+                      Navigator.of(dialogContext).pop();
+                      completer.complete(true);
+                    } catch (e) {
+                      debugPrint('Reauthentication failed: $e');
+                      if (dialogContext.mounted) {
+                        debugPrint('Closing dialog with failure');
+                        Navigator.of(dialogContext).pop();
+                      }
+                      SnackBarService.showError('Authentication failed: $e');
+                      completer.complete(false);
+                    }
+                    // finally {
+                    //   debugPrint('Completing authentication process');
+                    //   completer.complete();
+                    // }
+                  },
+                  icon: FaIcon(_getProviderIcon(provider)),
+                  label: Text('Continue with ${_getProviderName(provider)}'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _getProviderColor(provider),
+                    foregroundColor: Colors.white,
+                  ),
+                );
+              }),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                debugPrint('Cancel button pressed');
+                Navigator.of(dialogContext).pop();
+                completer.complete(false);
+              },
+              child: const Text('Cancel'),
             ),
           ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
+        );
+      },
     );
 
-    // Handle null case and mounted check
-    if (confirmed != true || !mounted) {
-      return false;
-    }
-
-    return true;
+    debugPrint('Waiting for authentication to complete');
+    debugPrint('Returning authentication result: ${completer.future}');
+    return await completer.future;
   }
 
   @override

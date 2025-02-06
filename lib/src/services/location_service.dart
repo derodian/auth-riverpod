@@ -1,4 +1,6 @@
+import 'package:auth_riverpod/src/features/auth/presentation/auth_controller.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -65,8 +67,12 @@ LocationService locationService(LocationServiceRef ref) {
 
 @riverpod
 Future<double?> distanceToAddress(
-  DistanceToAddressRef ref,
+  Ref ref,
   String address,
 ) async {
+  // Don't calculate distance if deletion is in progress
+  final isDeleting = ref.watch(deletionStateProvider);
+  if (isDeleting) return null;
+
   return ref.watch(locationServiceProvider).getDistanceToAddress(address);
 }

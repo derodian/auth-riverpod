@@ -7,7 +7,7 @@ part of 'app_user_storage_service.dart';
 // **************************************************************************
 
 String _$appUserStorageServiceHash() =>
-    r'5d2ab151647d814844fac98ae1b92a70e7c70335';
+    r'cdc4efef5c651835c026714845539e6b126da3d9';
 
 /// See also [AppUserStorageService].
 @ProviderFor(AppUserStorageService)

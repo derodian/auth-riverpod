@@ -23,7 +23,7 @@ final locationServiceProvider = Provider<LocationService>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef LocationServiceRef = ProviderRef<LocationService>;
-String _$distanceToAddressHash() => r'781e0f2c10e797f71f67ebf7030fd0173edee482';
+String _$distanceToAddressHash() => r'67df38ebded4446bcb86cba2796d0abb79449393';
 
 /// Copied from Dart SDK
 class _SystemHash {

@@ -15,6 +15,16 @@ class AuthController extends _$AuthController {
   StreamSubscription<AppUser?>? _userSubscription;
   StreamSubscription<bool>? _emailVerificationSubscription;
   bool _disposed = false;
+  bool _isReauthenticating = false;
+
+  // Add this getter for the router
+  bool get isReauthenticating => _isReauthenticating;
+
+  // void clearLoadingState() {
+  //   if (!_disposed) {
+  //     state = AsyncData(state.valueOrNull);
+  //   }
+  // }
 
   @override
   FutureOr<AppUser?> build() async {
@@ -207,6 +217,24 @@ class AuthController extends _$AuthController {
     }
   }
 
+  // Add social sign-in methods
+  Future<void> signInWithApple() async {
+    if (state.isLoading) return;
+    state = const AsyncValue.loading();
+
+    try {
+      final user = await _auth.signInWithApple();
+      if (!_disposed) {
+        state = AsyncData(user);
+      }
+    } catch (e, st) {
+      debugPrint('AuthController: Apple sign in error - $e');
+      if (!_disposed) {
+        state = AsyncError(e, st);
+      }
+    }
+  }
+
   // Add provider linking methods
   Future<void> linkProvider(AppAuthProvider provider) async {
     if (state.isLoading) return;
@@ -263,13 +291,16 @@ class AuthController extends _$AuthController {
 
   // Update other reauthentication methods similarly
   Future<void> reauthenticateWithProvider(AppAuthProvider provider) async {
+    debugPrint('AuthController: Starting provider reauthentication');
     try {
-      state = const AsyncLoading();
+      _isReauthenticating = true; // Set flag before authentication
       await _reauthenticateWithProvider(provider);
-      // Don't update state on success
+      debugPrint('AuthController: Reauthentication successful');
     } catch (e) {
-      // Don't update error state, just rethrow
+      debugPrint('AuthController: Reauthentication failed: $e');
       rethrow;
+    } finally {
+      _isReauthenticating = false; // Clear flag after authentication
     }
   }
 
@@ -296,7 +327,7 @@ class AuthController extends _$AuthController {
         await _auth.reauthenticateWithGoogle();
         break;
       case AppAuthProvider.apple:
-        // await _auth.reauthenticateWithApple();
+        await _auth.reauthenticateWithApple();
         break;
       case AppAuthProvider.facebook:
         // await _auth.reauthenticateWithFacebook();
@@ -308,6 +339,14 @@ class AuthController extends _$AuthController {
         throw Exception('Email authentication requires email and password');
     }
   }
+}
+
+@riverpod
+class DeletionState extends _$DeletionState {
+  @override
+  bool build() => false;
+
+  void setDeleting(bool isDeleting) => state = isDeleting;
 }
 
 // Optional: Add some extension methods for easier state handling

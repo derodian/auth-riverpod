@@ -30,6 +30,13 @@ GoRouter goRouter(Ref ref) {
       final onboardingComplete = ref.watch(onboardingControllerProvider);
       final authState = ref.watch(authControllerProvider);
 
+      final authController = ref.read(authControllerProvider.notifier);
+
+      // Skip redirection if reathenticating
+      if (authController.isReauthenticating) {
+        return null;
+      }
+
       // Get the current path
       final currentPath = state.matchedLocation;
 

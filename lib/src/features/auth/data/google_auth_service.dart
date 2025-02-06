@@ -9,7 +9,7 @@ class GoogleAuthService implements SocialAuthService {
     scopes: ['email', 'profile'],
   );
 
-  Future<OAuthCredential> getGoogleCredential() async {
+  Future<OAuthCredential> getCredential() async {
     try {
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) throw 'Google sign in cancelled';

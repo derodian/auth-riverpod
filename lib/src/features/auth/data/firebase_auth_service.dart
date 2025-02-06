@@ -1,3 +1,4 @@
+import 'package:auth_riverpod/src/features/auth/data/apple_auth_service.dart';
 import 'package:auth_riverpod/src/features/auth/data/google_auth_service.dart';
 import 'package:auth_riverpod/src/features/auth/data/reauthentication_required_exception.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,6 +7,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:auth_riverpod/src/features/auth/data/app_auth.dart';
 import 'package:auth_riverpod/src/features/auth/data/app_user_storage_service.dart';
 import 'package:auth_riverpod/src/features/auth/domain/app_user.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 part 'firebase_auth_service.g.dart';
 
@@ -17,7 +19,7 @@ class FirebaseAuthService implements AppAuth {
 
   // Add social auth service fields
   final GoogleAuthService _googleAuth = GoogleAuthService();
-  // final AppleAuthService _appleAuth = AppleAuthService();
+  final AppleAuthService _appleAuth = AppleAuthService();
   // final FacebookAuthService _facebookAuth = FacebookAuthService();
 
   @override
@@ -150,7 +152,7 @@ class FirebaseAuthService implements AppAuth {
   @override
   Future<AppUser> signInWithGoogle() async {
     try {
-      final credential = await _googleAuth.getGoogleCredential();
+      final credential = await _googleAuth.getCredential();
       final userCredential = await _auth.signInWithCredential(credential);
 
       if (userCredential.user == null) {
@@ -165,6 +167,28 @@ class FirebaseAuthService implements AppAuth {
       throw _handleAuthException(e);
     } catch (e) {
       throw Exception('Failed to sign in with Google: ${e.toString()}');
+    }
+  }
+
+  // Add social sign-in methods
+  @override
+  Future<AppUser> signInWithApple() async {
+    try {
+      final credential = await _appleAuth.getCredential();
+      final userCredential = await _auth.signInWithCredential(credential);
+
+      if (userCredential.user == null) {
+        throw Exception('No user found after Sing in with Apple');
+      }
+
+      return await _handleSocialSignIn(
+        userCredential: userCredential,
+        provider: AppAuthProvider.apple,
+      );
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
+    } catch (e) {
+      throw Exception('Failed to sign in with Apple: ${e.toString()}');
     }
   }
 
@@ -210,11 +234,11 @@ class FirebaseAuthService implements AppAuth {
       AuthCredential? credential;
       switch (provider) {
         case AppAuthProvider.google:
-          credential = await _googleAuth.getGoogleCredential();
+          credential = await _googleAuth.getCredential();
           break;
-        // case AppAuthProvider.apple:
-        //   credential = await _appleAuth.getAppleCredential();
-        //   break;
+        case AppAuthProvider.apple:
+          credential = await _appleAuth.getCredential();
+          break;
         // case AppAuthProvider.facebook:
         //   credential = await _facebookAuth.getFacebookCredential();
         //   break;
@@ -392,6 +416,9 @@ class FirebaseAuthService implements AppAuth {
       final user = _auth.currentUser;
       if (user == null) throw Exception('No user found');
 
+      // Delete storage files first
+      await _userStorage.deleteAllUserImages(user.uid);
+
       // First delete from Firestore
       await _userStorage.deleteUser(user.uid);
 
@@ -444,7 +471,7 @@ class FirebaseAuthService implements AppAuth {
       final user = _auth.currentUser;
       if (user == null) throw Exception('No user found');
 
-      final credential = await _googleAuth.getGoogleCredential();
+      final credential = await _googleAuth.getCredential();
       await user.reauthenticateWithCredential(credential);
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
@@ -452,6 +479,51 @@ class FirebaseAuthService implements AppAuth {
       throw Exception('Failed to reauthenticate with Google: $e');
     }
   }
+
+  @override
+  Future<void> reauthenticateWithApple() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('No user found');
+
+      final credential = await _appleAuth.getCredential();
+      await user.reauthenticateWithCredential(credential);
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
+    } catch (e) {
+      throw Exception('Failed to reauthenticate with Apple: $e');
+    }
+  }
+
+  // @override
+  // Future<void> reauthenticateWithFacebook() async {
+  //   try {
+  //     final user = _auth.currentUser;
+  //     if (user == null) throw Exception('No user found');
+
+  //     final credential = await _facebookAuth.getFacebookCredential();
+  //     await user.reauthenticateWithCredential(credential);
+  //   } on FirebaseAuthException catch (e) {
+  //     throw _handleAuthException(e);
+  //   } catch (e) {
+  //     throw Exception('Failed to reauthenticate with Facebook: $e');
+  //   }
+  // }
+
+  // @override
+  // Future<void> reauthenticateWithGithub() async {
+  //   try {
+  //     final user = _auth.currentUser;
+  //     if (user == null) throw Exception('No user found');
+
+  //     final credential = await _githubAuth.getGithubCredential();
+  //     await user.reauthenticateWithCredential(credential);
+  //   } on FirebaseAuthException catch (e) {
+  //     throw _handleAuthException(e);
+  //   } catch (e) {
+  //     throw Exception('Failed to reauthenticate with Github: $e');
+  //   }
+  // }
 
   Exception _handleAuthException(FirebaseAuthException e) {
     switch (e.code) {

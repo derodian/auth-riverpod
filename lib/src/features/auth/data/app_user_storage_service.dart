@@ -260,16 +260,21 @@ class AppUserStorageService extends _$AppUserStorageService {
   }
 
   Future<void> deleteUser(String userId) async {
-    return _runTransactionSafely((transaction) async {
-      final userDoc = _usersCollection.doc(userId);
-      final snapshot = await transaction.get(userDoc);
+    // return _runTransactionSafely((transaction) async {
+    //   final userDoc = _usersCollection.doc(userId);
+    //   final snapshot = await transaction.get(userDoc);
 
-      if (!snapshot.exists) {
-        throw Exception('User does not exist');
-      }
+    //   if (!snapshot.exists) {
+    //     throw Exception('User does not exist');
+    //   }
 
-      transaction.delete(userDoc);
-    });
+    //   transaction.delete(userDoc);
+    // });
+    try {
+      await _usersCollection.doc(userId).delete();
+    } on FirebaseException catch (e) {
+      throw _handleFirestoreException(e);
+    }
   }
 
   Stream<AppUser?> watchUser(String userId) {

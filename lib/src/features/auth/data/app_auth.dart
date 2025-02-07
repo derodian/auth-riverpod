@@ -46,6 +46,8 @@ abstract class AppAuth {
   Future<AppUser> signInWithApple();
   // Future<AppUser> signInWithFacebook();
   // Future<AppUser> signInWithGithub();
+  Future<List<AppAuthProvider>> checkEmailProviders(String email);
+  Future<AppUser> getUserInfoFromCredential(OAuthCredential credential);
 
   // Delete account
   Future<void> deleteAccount();

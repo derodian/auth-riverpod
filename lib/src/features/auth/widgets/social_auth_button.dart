@@ -17,7 +17,7 @@ class SocialAuthButton extends StatelessWidget {
   final double? height;
 
   const SocialAuthButton({
-    Key? key,
+    super.key,
     required this.provider,
     this.onPressed,
     this.isLoading = false,
@@ -25,7 +25,7 @@ class SocialAuthButton extends StatelessWidget {
     this.size = SocialButtonSize.large,
     this.width,
     this.height,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -98,7 +98,7 @@ class SocialAuthButton extends StatelessWidget {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : FaIcon(_getProviderIcon(), size: 20),
-              label: Text(_getButtonText()),
+              label: Text(isLoading ? 'Please wait...' : _getButtonText()),
               style: ElevatedButton.styleFrom(
                 backgroundColor: _getProviderColor(),
                 foregroundColor: Colors.white,

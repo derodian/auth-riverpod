@@ -1,6 +1,7 @@
 import 'package:auth_riverpod/src/features/auth/data/apple_auth_service.dart';
 import 'package:auth_riverpod/src/features/auth/data/google_auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:auth_riverpod/src/features/auth/data/app_auth.dart';
@@ -130,6 +131,49 @@ class FirebaseAuthService implements AppAuth {
   }
 
   @override
+  Future<List<AppAuthProvider>> checkEmailProviders(String email) async {
+    try {
+      debugPrint('Checking Firebase providers for: $email');
+      // First check if email exists in Firestore
+      final exists = await _userStorage.checkEmailExists(email);
+      if (exists) {
+        final methods = await _auth.fetchSignInMethodsForEmail(email);
+        debugPrint('Firebase returned methods: $methods');
+
+        final providers = methods
+            .map((method) {
+              switch (method) {
+                case 'google.com':
+                  return AppAuthProvider.google;
+                case 'apple.com':
+                  return AppAuthProvider.apple;
+                case 'facebook.com':
+                  return AppAuthProvider.facebook;
+                case 'github.com':
+                  return AppAuthProvider.github;
+                case 'password':
+                  return AppAuthProvider.email;
+                default:
+                  return null;
+              }
+            })
+            .whereType<AppAuthProvider>()
+            .toList();
+
+        debugPrint('Converted to providers: $providers');
+        return providers;
+      }
+      return [];
+    } on FirebaseAuthException catch (e) {
+      debugPrint('Firebase Auth error: ${e.code} - ${e.message}');
+      throw _handleAuthException(e);
+    } catch (e) {
+      debugPrint('Unexpected error: $e');
+      rethrow;
+    }
+  }
+
+  @override
   Future<void> signOut() async {
     await Future.wait([
       _auth.signOut(),
@@ -203,8 +247,32 @@ class FirebaseAuthService implements AppAuth {
 
     if (existingUser != null) {
       // Update last login and return existing user
+      final updatedUser =
+          await _userStorage.linkProvider(firebaseUser.uid, provider);
       await _userStorage.updateLastLogin(existingUser.id);
-      return existingUser;
+      // return existingUser;
+      return updatedUser;
+    }
+
+    // Check if email exists with different account
+    final emailExists =
+        await _userStorage.checkEmailExists(firebaseUser.email!);
+    if (emailExists) {
+      // Show merge confirmation dialog through UI
+      // This should be handled at the UI level through a callback
+      // For now, proceed with merge
+      final newUser = AppUser.fromSocialAuth(
+        id: firebaseUser.uid,
+        email: firebaseUser.email!,
+        name: firebaseUser.displayName ?? firebaseUser.email!.split('@')[0],
+        provider: provider,
+        phoneNumber: firebaseUser.phoneNumber,
+        profileImageUrl: firebaseUser.photoURL,
+        providerData: userData,
+      );
+
+      await _userStorage.createOrUpdateSocialUser(newUser);
+      return newUser;
     }
 
     // Create new user
@@ -221,6 +289,40 @@ class FirebaseAuthService implements AppAuth {
     // Save to storage
     await _userStorage.createUser(newUser);
     return newUser;
+  }
+
+  AppAuthProvider _getProviderFromCredential(AuthCredential credential) {
+    return switch (credential.providerId) {
+      'google.com' => AppAuthProvider.google,
+      'apple.com' => AppAuthProvider.apple,
+      'facebook.com' => AppAuthProvider.facebook,
+      'github.com' => AppAuthProvider.github,
+      _ => AppAuthProvider.email,
+    };
+  }
+
+  @override
+  Future<AppUser> getUserInfoFromCredential(OAuthCredential credential) async {
+    try {
+      final userCred = await _auth.signInWithCredential(credential);
+      if (userCred.user == null) throw Exception('No user data found');
+
+      return AppUser.fromSocialAuth(
+        id: userCred.user!.uid,
+        email: userCred.user!.email ?? '',
+        name: userCred.user!.displayName ??
+            userCred.user!.email?.split('@')[0] ??
+            '',
+        provider: _getProviderFromCredential(credential),
+        phoneNumber: userCred.user!.phoneNumber,
+        profileImageUrl: userCred.user!.photoURL,
+        providerData: userCred.additionalUserInfo?.profile,
+      );
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
+    } catch (e) {
+      throw Exception('Failed to sign in with Apple: ${e.toString()}');
+    }
   }
 
   @override
@@ -295,20 +397,20 @@ class FirebaseAuthService implements AppAuth {
     }
   }
 
-  AppAuthProvider _getProviderFromCredential(AuthCredential credential) {
-    switch (credential.providerId) {
-      case 'google.com':
-        return AppAuthProvider.google;
-      case 'apple.com':
-        return AppAuthProvider.apple;
-      case 'facebook.com':
-        return AppAuthProvider.facebook;
-      case 'github.com':
-        return AppAuthProvider.github;
-      default:
-        return AppAuthProvider.email;
-    }
-  }
+  // AppAuthProvider _getProviderFromCredential(AuthCredential credential) {
+  //   switch (credential.providerId) {
+  //     case 'google.com':
+  //       return AppAuthProvider.google;
+  //     case 'apple.com':
+  //       return AppAuthProvider.apple;
+  //     case 'facebook.com':
+  //       return AppAuthProvider.facebook;
+  //     case 'github.com':
+  //       return AppAuthProvider.github;
+  //     default:
+  //       return AppAuthProvider.email;
+  //   }
+  // }
 
   @override
   Future<void> reload() async {

@@ -4,6 +4,7 @@ import 'package:auth_riverpod/src/features/auth/data/app_auth.dart';
 import 'package:auth_riverpod/src/features/auth/data/firebase_auth_service.dart';
 import 'package:auth_riverpod/src/features/auth/domain/app_user.dart';
 import 'package:auth_riverpod/src/services/snackbar_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -82,14 +83,21 @@ class AuthController extends _$AuthController {
     required String name,
     String? phoneNumber,
   }) async {
-    state = const AsyncValue.loading();
     try {
+      // Check providers before attempting sign up
+      final providers = await checkEmailProviders(email);
+      if (providers.isNotEmpty) {
+        throw Exception('Email already registered with other providers');
+      }
+
+      state = const AsyncValue.loading();
       final user = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
         name: name,
         phoneNumber: phoneNumber,
       );
+
       if (!_disposed) {
         state = AsyncData(user);
       }
@@ -101,7 +109,6 @@ class AuthController extends _$AuthController {
   }
 
   // Update signOut to handle all providers
-  @override
   Future<void> signOut() async {
     state = const AsyncValue.loading();
     try {
@@ -192,6 +199,29 @@ class AuthController extends _$AuthController {
       await _auth.updatePassword(newPassword);
       return state.valueOrNull;
     });
+  }
+
+  Future<void> signInWithSocialProvider(AppAuthProvider provider) async {
+    if (state.isLoading) return;
+    state = const AsyncValue.loading();
+    try {
+      AppUser user;
+      switch (provider) {
+        case AppAuthProvider.google:
+          user = await _auth.signInWithGoogle();
+          break;
+        case AppAuthProvider.apple:
+          user = await _auth.signInWithApple();
+          break;
+        default:
+          throw UnimplementedError('Provider not supported');
+      }
+      state = AsyncData(user);
+    } on FirebaseAuthException catch (e) {
+      state = AsyncError(_handleFirebaseError(e), StackTrace.current);
+    } catch (e, st) {
+      state = AsyncError(e, st);
+    }
   }
 
   // Add social sign-in methods
@@ -332,6 +362,33 @@ class AuthController extends _$AuthController {
       case AppAuthProvider.email:
         throw Exception('Email authentication requires email and password');
     }
+  }
+
+  Future<List<AppAuthProvider>> checkEmailProviders(String email) async {
+    try {
+      debugPrint('Checking providers for email: $email');
+      final providers = await _auth.checkEmailProviders(email);
+      debugPrint('Found providers: $providers');
+      return providers;
+    } catch (e, st) {
+      debugPrint('Error checking providers: $e');
+      // Don't update error state for validation checks
+      // state = AsyncError(e, st);
+      rethrow;
+    }
+  }
+
+  String _handleFirebaseError(FirebaseAuthException e) {
+    return switch (e.code) {
+      'account-exists-with-different-credential' =>
+        'An account already exists with this email. Try signing in with a different method.',
+      'popup-blocked' =>
+        'Sign in popup was blocked. Please allow popups and try again.',
+      'popup-closed-by-user' => 'Sign in was cancelled.',
+      'network-request-failed' =>
+        'Network error. Please check your connection.',
+      _ => e.message ?? 'An error occurred during sign in'
+    };
   }
 }
 

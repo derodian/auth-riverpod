@@ -4,7 +4,11 @@ import 'dart:math';
 import 'package:auth_riverpod/src/features/auth/data/social_auth.dart';
 import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'apple_auth_service.g.dart';
 
 class AppleAuthService implements SocialAuthService {
   // Generate a random nonce for Apple Sign In
@@ -71,4 +75,9 @@ class AppleAuthService implements SocialAuthService {
     }
     return null;
   }
+}
+
+@riverpod
+AppleAuthService appleAuthService(Ref ref) {
+  return AppleAuthService();
 }

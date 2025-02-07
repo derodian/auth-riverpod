@@ -1,4 +1,9 @@
 import 'dart:io' show Platform;
+import 'package:auth_riverpod/src/features/auth/data/app_user_storage_service.dart';
+import 'package:auth_riverpod/src/features/auth/data/apple_auth_service.dart';
+import 'package:auth_riverpod/src/features/auth/data/firebase_auth_service.dart';
+import 'package:auth_riverpod/src/features/auth/data/google_auth_service.dart';
+import 'package:auth_riverpod/src/features/auth/widgets/merge_account_dialog.dart';
 import 'package:auth_riverpod/src/features/auth/widgets/social_auth_button.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -18,6 +23,7 @@ class AuthScreen extends ConsumerStatefulWidget {
 
 class _AuthScreenState extends ConsumerState<AuthScreen> {
   AuthFormType _formType = AuthFormType.signIn;
+  bool _isLoading = false;
 
   void _toggleFormType() {
     setState(() {
@@ -60,30 +66,87 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   }
 
   Future<void> _handleSocialSignIn(AppAuthProvider provider) async {
+    if (_isLoading) return;
+
+    setState(() => _isLoading = true);
+
     try {
-      switch (provider) {
-        case AppAuthProvider.google:
-          await ref.read(authControllerProvider.notifier).signInWithGoogle();
-          break;
-        case AppAuthProvider.apple:
-          await ref.read(authControllerProvider.notifier).signInWithApple();
-          break;
-        // case AppAuthProvider.facebook:
-        //   await ref.read(authControllerProvider.notifier).signInWithFacebook();
-        //   break;
-        // case AppAuthProvider.github:
-        //   await ref.read(authControllerProvider.notifier).signInWithGithub();
-        //   break;
-        default:
-          break;
+      final credential = await switch (provider) {
+        AppAuthProvider.google =>
+          ref.read(googleAuthServiceProvider).getCredential(),
+        AppAuthProvider.apple =>
+          ref.read(appleAuthServiceProvider).getCredential(),
+        _ => throw UnsupportedError('Provider not supported'),
+      };
+
+      final userInfo = await ref
+          .read(authServiceProvider)
+          .getUserInfoFromCredential(credential);
+
+      final exists = await ref
+          .read(appUserStorageServiceProvider.notifier)
+          .checkEmailExists(userInfo.email);
+
+      if (exists && mounted) {
+        final shouldMerge = await showDialog<bool>(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => MergeAccountDialog(
+                email: userInfo.email,
+                provider: provider,
+                onConfirm: () => Navigator.of(context).pop(true),
+                onCancel: () => Navigator.of(context).pop(false),
+              ),
+            ) ??
+            false;
+
+        if (!shouldMerge) {
+          setState(() => _isLoading = false);
+          return;
+        }
       }
+
+      await ref
+          .read(authControllerProvider.notifier)
+          .signInWithSocialProvider(provider);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
       );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
+
+  // Future<void> _handleSocialSignIn(AppAuthProvider provider) async {
+  //   try {
+  //     switch (provider) {
+  //       case AppAuthProvider.google:
+  //         await ref.read(authControllerProvider.notifier).signInWithGoogle();
+  //         break;
+  //       case AppAuthProvider.apple:
+  //         await ref.read(authControllerProvider.notifier).signInWithApple();
+  //         break;
+  //       // case AppAuthProvider.facebook:
+  //       //   await ref.read(authControllerProvider.notifier).signInWithFacebook();
+  //       //   break;
+  //       // case AppAuthProvider.github:
+  //       //   await ref.read(authControllerProvider.notifier).signInWithGithub();
+  //       //   break;
+  //       default:
+  //         break;
+  //     }
+  //   } catch (e) {
+  //     if (!mounted) return;
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(content: Text(e.toString())),
+  //     );
+  //   }
+  // }
 
   Future<void> _onSubmit(
     String email,
@@ -290,12 +353,19 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     );
   }
 
+  void _handleFormTypeChange(AuthFormType newType) {
+    setState(() {
+      _formType = newType;
+    });
+  }
+
   Widget _buildEmailFormSection(bool isLoading) {
     return Column(
       children: [
         EmailPasswordForm(
           formType: _formType,
           onSubmit: _onSubmit,
+          onFormTypeChange: _handleFormTypeChange,
           enabled: !isLoading,
         ),
         const SizedBox(height: 16),
